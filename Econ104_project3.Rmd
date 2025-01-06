@@ -1,0 +1,121 @@
+---
+title: "Econ104_project3"
+author: "Ashley Guerra, Eyasu Olana, Evan Titus, Gavin Valenzuela"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r}
+library(AER)
+library(MASS)
+library(caret)
+library(ggplot2)
+
+data("SmokeBan")
+```
+
+```{r}
+# Convert the 'smoker' column to a binary numeric variable
+SmokeBan$smoker <- ifelse(SmokeBan$smoker == "yes", 1, 0)
+
+# Convert all factor variables to dummy variables using model.matrix
+SmokeBan$ban <- as.factor(SmokeBan$ban)
+SmokeBan$education <- as.factor(SmokeBan$education)
+SmokeBan$afam <- as.factor(SmokeBan$afam)
+SmokeBan$hispanic <- as.factor(SmokeBan$hispanic)
+SmokeBan$gender <- as.factor(SmokeBan$gender)
+
+# Create dummy variables using model.matrix
+dummies <- model.matrix(~ ban + education + afam + hispanic + gender - 1, data = SmokeBan)
+
+# Combine the dummy variables with the rest of the data
+SmokeBan <- cbind(SmokeBan, dummies)
+
+# Remove the original factor columns
+SmokeBan <- SmokeBan[, !(names(SmokeBan) %in% c("ban", "education", "afam", "hispanic", "gender"))]
+
+# Check the structure of the dataset to ensure all variables are numeric
+str(SmokeBan)
+
+```
+
+
+
+## 2C)
+
+
+## Fit the Linear Probability Model
+
+
+```{r}
+lpm <- lm(smoker ~ ., data = SmokeBan)
+summary(lpm)
+
+```
+
+
+##  Fit the Probit Model
+
+```{r}
+probit_model <- glm(smoker ~ ., family = binomial(link = "probit"), data = SmokeBan)
+summary(probit_model)
+
+```
+
+
+## Fit the Logit Model
+
+
+
+```{r}
+logit_model <- glm(smoker ~ ., family = binomial(link = "logit"), data = SmokeBan)
+summary(logit_model)
+```
+
+
+## AIC and BIC for model comparison
+
+
+```{r}
+# Calculate AIC and BIC for model comparison
+aic_values <- c(AIC(lpm), AIC(probit_model), AIC(logit_model))
+bic_values <- c(BIC(lpm), BIC(probit_model), BIC(logit_model))
+
+# Predicted probabilities
+pred_lpm <- predict(lpm, type = "response")
+pred_probit <- predict(probit_model, type = "response")
+pred_logit <- predict(logit_model, type = "response")
+
+# Convert probabilities to class labels
+threshold <- 0.5
+pred_lpm_class <- factor(ifelse(pred_lpm > threshold, 1, 0), levels = c(0, 1))
+pred_probit_class <- factor(ifelse(pred_probit > threshold, 1, 0), levels = c(0, 1))
+pred_logit_class <- factor(ifelse(pred_logit > threshold, 1, 0), levels = c(0, 1))
+actual_smoker <- factor(SmokeBan$smoker, levels = c(0, 1))
+
+# Confusion matrices
+confusion_lpm <- caret::confusionMatrix(pred_lpm_class, actual_smoker)
+confusion_probit <- caret::confusionMatrix(pred_probit_class, actual_smoker)
+confusion_logit <- caret::confusionMatrix(pred_logit_class, actual_smoker)
+
+# Classification reports
+accuracy_values <- c(confusion_lpm$overall['Accuracy'], 
+                     confusion_probit$overall['Accuracy'], 
+                     confusion_logit$overall['Accuracy'])
+
+# Model comparison table
+model_comparison <- data.frame(
+  Model = c("LPM", "Probit", "Logit"),
+  AIC = aic_values,
+  BIC = bic_values,
+  Accuracy = accuracy_values
+)
+
+print(model_comparison)
+
+# Identify the preferred model
+preferred_model <- model_comparison[which.min(model_comparison$AIC), ]
+print(preferred_model)
+```
+## Answer :
+The Logit model has the lowest AIC (10522.19) and BIC (10594.29) values, indicating a better fit compared to the Linear Probability Model (LPM) and the Probit model. Additionally, the Logit model shows the highest accuracy (0.7602) in predicting the binary dependent variable.
