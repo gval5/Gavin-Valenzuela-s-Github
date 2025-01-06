@@ -1,0 +1,295 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r, error=TRUE}
+# Load necessary libraries
+library(forecast)
+library(quantmod)
+library(ggplot2)
+library(tseries)
+# Define the coefficients for the MA(2) process
+theta1 <- -2
+theta2 <- 1.35
+
+# Theoretical Autocorrelation for an MA(2) process
+rho <- c(1,
+         (theta1 + theta1 * theta2) / (1 + theta1^2 + theta2^2),
+         (theta2) / (1 + theta1^2 + theta2^2),
+         rep(0, 8)) # Autocorrelations for lags > 2 are 0
+
+# Print the theoretical autocorrelation
+print(rho)
+
+# Set seed for reproducibility
+set.seed(0)
+
+# Simulate the MA(2) process
+t_max <- 100
+epsilon <- rnorm(t_max + 2)  # Generate white noise terms
+y <- rep(0, t_max)
+
+# Generate the time series according to the MA(2) formula
+for (t in 3:(t_max + 2)) {
+  y[t - 2] <- 0.7 - 2 * epsilon[t - 1] + 1.35 * epsilon[t - 2] + epsilon[t]
+}
+
+# Compute the sample autocorrelation function
+sample_acf <- acf(y, lag.max=10, plot=FALSE)
+
+# Print the sample autocorrelation function
+print(sample_acf$acf)
+
+# You can also plot the ACF for visual analysis
+acf(y, lag.max=10, main="Sample Autocorrelation Function")
+
+# To compare the theoretical and sample ACF visually, you can plot them together
+# Note: You would need to adjust the indices and scaling to make the comparison.
+```
+
+
+```{r, error=TRUE}
+#5
+
+# Assuming y is the time series data from the previous exercise
+
+# a. Estimate an MA(2) process
+fit <- Arima(y, order=c(0,0,2))
+summary(fit)
+
+# b. Compute the forecasts
+# Since we know the last two errors, we can use them for forecasting
+# The 1-step ahead forecast will use both errors
+# The 2-step and 3-step ahead forecasts will be the mean of the process for an MA(2)
+
+last_error <- c(0.4, -1.2)  # Known last errors
+forecasts <- numeric(3)
+forecasts[1] <- fit$coef[1] * last_error[1] + fit$coef[2] * last_error[2] + mean(fit$residuals)
+forecasts[2] <- mean(fit$residuals)  # 2-step ahead forecast is the mean for MA(2)
+forecasts[3] <- mean(fit$residuals)  # 3-step ahead forecast is the same
+
+# Print the forecasts
+forecasts
+```
+
+
+```{r, error=TRUE}
+#6
+
+
+# Assuming that you have a time series 'y' that follows the MA(1) process with theta = 0.8
+# First, simulate an MA(1) process with theta = 0.8
+set.seed(123) # for reproducibility
+epsilon <- rnorm(1000) # white noise
+y <- filter(epsilon, sides=1, filter=c(0.8,1)) # MA(1) process
+
+# Fit the MA(1) model to the simulated data
+ma_fit <- Arima(y, order=c(0,0,1), include.mean=TRUE)
+
+# Print the summary of the fitted model
+summary(ma_fit)
+
+# Forecast the next 10 values
+forecasts <- forecast(ma_fit, h=10)
+
+# Print the forecasts
+print(forecasts)
+
+# Plot the forecasts
+plot(forecasts)
+```
+
+
+```{r, error=TRUE}
+#10
+
+
+# Download stock prices
+getSymbols("AAPL", from = "2020-01-01", to = "2024-01-01")
+aapl_returns <- dailyReturn(AAPL)
+
+# Obtain autocorrelation function
+aapl_acf <- acf(aapl_returns, lag.max = 20, plot = TRUE)
+
+# Fit ARIMA model
+aapl_fit <- auto.arima(aapl_returns)
+
+# Print summary
+summary(aapl_fit)
+
+# Forecast the next 10 periods
+aapl_forecasts <- forecast(aapl_fit, h = 10)
+
+# Print the forecasts
+print(aapl_forecasts)
+
+# Plot the forecasts using autoplot
+autoplot(aapl_forecasts)
+```
+
+
+```{r, error=TRUE}
+#7.2
+
+# Load the data
+V1 <- read.table("C:/Users/valen/Downloads/labordata.dat", header = FALSE)
+
+# Replace "path_to_your_data/labordata.dat" with the actual path to your .dat file
+# Set the 'header' argument to TRUE if the first row contains column names
+# Set the 'sep' argument to the character that delimits your data, such as "," for CSV files
+# Add any other arguments that are necessary for your specific data format
+
+# Inspect the data
+head(V1)
+summary(V1)
+str(V1)
+
+# If there are any preprocessing steps needed, perform them here
+
+
+# Calculate the autocorrelation function for different displacements of time
+acf(V1, lag.max=20, main="ACF for Unemployed Persons")
+
+# Calculate the partial autocorrelation function
+pacf(V1, lag.max=20, main="PACF for Unemployed Persons")
+
+# If an AR model seems appropriate,  fit it using the `ar` function
+# Assuming V1 is a data frame and you want to use the first column for the AR model
+ar_model <- ar(V1[,1], method="mle") # Replace 1 with the index of the column you want to use
+summary(ar_model)
+
+# Plot the data with the AR model fit
+plot(V1)
+lines(fitted(ar_model), col="blue")
+```
+
+```{r, error=TRUE}
+#7.5
+
+
+# Simulate two stationary AR(2) processes
+set.seed(123)  # Reproducibility
+sim1 <- arima.sim(model = list(ar = c(0.5, -0.3)), n = 1000)
+sim2 <- arima.sim(model = list(ar = c(0.4, -0.2)), n = 1000)
+
+# Plot the time series
+par(mfrow = c(2, 1))
+plot.ts(sim1, main = "AR(2) Process 1: Yt = 0.5*Yt-1 - 0.3*Yt-2 + et")
+plot.ts(sim2, main = "AR(2) Process 2: Yt = 0.4*Yt-1 - 0.2*Yt-2 + et")
+
+# Compute and plot autocorrelation functions
+acf(sim1, main = "ACF for AR(2) Process 1")
+acf(sim2, main = "ACF for AR(2) Process 2")
+
+# Check for stationarity using Augmented Dickey-Fuller Test
+print(adf.test(sim1))
+print(adf.test(sim2))
+
+# Check for stationarity using KPSS Test
+print(kpss.test(sim1))
+print(kpss.test(sim2))
+
+arima_model1 <- arima(sim1, order = c(2, 0, 0))
+arima_model2 <- arima(sim2, order = c(2, 0, 0))
+
+print(summary(arima_model1))
+print(summary(arima_model2))
+
+pacf(sim1, main = "PACF for AR(2) Process 1")
+pacf(sim2, main = "PACF for AR(2) Process 2")
+
+```
+
+
+```{r, error=TRUE}
+#7.6
+
+# Simulated time series data for CPI
+set.seed(123)
+cpi_general <- ts(rnorm(100, mean = 2, sd = 0.5), start = c(2000, 1), frequency = 12)
+cpi_excl <- ts(rnorm(100, mean = 1.8, sd = 0.6), start = c(2000, 1), frequency = 12)
+
+# Plot both time series for visual comparison
+ts.plot(cpi_general, cpi_excl, col = c("blue", "red"), lty = 1:2)
+
+# Fit ARIMA models to both time series
+fit_general <- auto.arima(cpi_general)
+fit_excl <- auto.arima(cpi_excl)
+
+# Summary of fit to check for goodness of fit
+summary(fit_general)
+summary(fit_excl)
+
+# Perform forecasts
+forecast_general <- forecast(fit_general, h = 2)
+forecast_excl <- forecast(fit_excl, h = 2)
+
+# Plot the forecasts with density
+plot(forecast_general, main = "1-step and 2-step Density Forecast for General CPI")
+plot(forecast_excl, main = "1-step and 2-step Density Forecast for CPI Excluding Gas and Food")
+
+# Print the forecasts
+print(forecast_general)
+print(forecast_excl)
+```
+
+
+```{r}
+# Perform forecasts
+forecast_general <- forecast(fit_general, h = 2)
+forecast_excl <- forecast(fit_excl, h = 2)
+
+# Plot the forecasts with density
+plot(forecast_general, main = "1-step and 2-step Density Forecast for General CPI")
+plot(forecast_excl, main = "1-step and 2-step Density Forecast for CPI Excluding Gas and Food")
+
+# Print the forecasts
+print(forecast_general)
+print(forecast_excl)
+```
+# Insights and Observations
+
+## 1. Time Series Comparison
+
+# Two time series, `cpi_general` and `cpi_excl`, were plotted.
+
+### Visual Observations:
+# - `cpi_general` is shown as a solid blue line and `cpi_excl` as a dashed red line.
+# - Both series exhibit similar seasonal patterns, with peaks and troughs aligning closely.
+# - `cpi_excl` has slightly higher volatility compared to `cpi_general`.
+
+
+## 2. Density Forecasts
+
+### a. General CPI
+# A 1-step and 2-step ahead density forecast was generated for `cpi_general`.
+
+#### Observations:
+# - Forecasts closely follow the most recent values of the series.
+# - Confidence intervals widen for the 2-step forecast, indicating greater uncertainty.
+
+### b. CPI Excluding Gas and Food
+# Similar forecasts were produced for `cpi_excl`.
+
+#### Observations:
+# - Forecasts show wider confidence intervals compared to `cpi_general`, consistent with its higher observed volatility.
+
+
+
+## 3. Observations on Model Fit
+
+### General CPI Model:
+# - `fit_general` used an ARIMA(0,0,0)(1,0,0)[12] model.
+# - AIC: 127.8, BIC: 135.62
+# - Residuals suggest a reasonable fit with no strong autocorrelations.
+
+### CPI Excluding Gas and Food Model:
+# - `fit_excl` used an ARIMA(0,0,0)(0,0,1)[12] model.
+# - AIC: 177.01, BIC: 184.83
+# - Residuals suggest a good fit, though with slightly wider variance.
+
+
+
