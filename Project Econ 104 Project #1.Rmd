@@ -1,0 +1,336 @@
+---
+title: 'Project #1'
+author: "Gavin Valenzuela"
+date: "2024-07-04"
+output: pdf_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+load("C:/Users/valen/Downloads/hp.RData")
+library(magrittr)
+library(MASS)
+library(car)
+library(RRPP)
+library(lmtest)
+
+model <- lm(sell ~ . , data = hp)
+```
+
+```{r}
+viftest <- vif(model)
+viftest
+```
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+cat("Removing the stories and bedrooms variables because they have the highest VIFs and it also\n")
+cat("makes logical sense since the larger the lot size, the more likely more bedrooms are, so\n")
+cat("lot size covers that aspect.\n")
+model1 <- lm(sell ~ . - stories - bedrooms, data = hp)
+#Found a command for generating best variables to use via AIC test which turns out to be all the variables.
+lm(sell ~ . , data = hp) %>%
+stepAIC(direction = "backward", trace = 0) %>%
+summary()
+```
+```{r}
+AIC(model)
+```
+
+```{r}
+AIC(model1)
+```
+
+```{r}
+# Assuming model is already defined and fitted to your data
+
+# Generate fitted values from the model
+fittedmodel <- fitted.values(model)
+
+# Additional regressor like squared and cubed terms
+fittedsquared <- fittedmodel^2
+fittedcubed <- fittedmodel^3
+
+# Make a new model with the new variables added
+newmodel <- lm(sell ~ fittedsquared + fittedcubed, data = hp)
+
+# Check the summary of the new model
+summary(newmodel)
+```
+
+```{r}
+#performing reset test on the new model
+Rtest <- resettest(model, power = 2:3,type = "regressor")
+print(Rtest)
+```
+#3
+```{r}
+# Fit the baseline model
+baseline_model <- lm(sell ~ ., data = hp)
+
+# Create a summary of the baseline model
+baseline_summary <- summary(baseline_model)
+
+# Print the summary
+print(baseline_summary)
+```
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+# Interpretation
+#(Comment on the Statistical and 
+#Economic Significance of Your Individual Estimates
+#From the summary output of the baseline model
+#*Statistically Significant Variables:
+#Variables with p-values less than 0.05 are statistically significant
+#Significant variables include lotsize, fullbath, stories,
+#driveway, recreation, basement, gas, centralair, garage, 
+#and neighbour
+#*Insignificant Variables
+#The variable bedrooms has a p-value of 0.0807,
+#which is greater than 0.05, indicating it 
+#is not statistically significant at the 5% level
+```
+
+
+```{r}
+# Identify statistically significant variables
+coef_summary <- baseline_summary$coefficients
+significant_vars <-
+coef_summary[coef_summary[, 4] < 0.05, ]
+
+# Print significant variables
+print(significant_vars)
+
+```
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+# Economic Significance
+# Interpretation of Coefficients:
+# - **Lotsize:** The coefficient is 3.5463, meaning a one-unit increase in lot size is associated 
+#with an increase of approximately 3.55 units in sell, holding other factors constant. 
+#This is economically significant as it shows a positive impact on property value.
+# - **Fullbath:** The coefficient is 14335.5585, 
+#meaning an additional full bathroom is 
+#associated with an increase of approximately 
+#14335.56 units in sell. 
+#This is a substantial impact and economically significant.
+# - **Stories:** The coefficient is 6556.9457,
+#meaning an additional story in the building is associated 
+#with an increase of approximately 6556.95 
+#units in sell.
+# - **Driveway:** The coefficient is 6687.7789, 
+#meaning having a driveway is associated 
+#with an increase of approximately 
+#6687.78 units in sell.
+# - **Recreation:** The coefficient is 
+#4511.2884, meaning the presence of recreation
+#facilities is associated with
+#an increase of approximately 4511.29 units in sell.
+# - **Basement:** The coefficient is 5452.3835,
+#meaning having a basement is associated 
+#with an increase of approximately 5452.38 
+#units in sell.
+# - **Gas:** The coefficient is 12381.4066, 
+#meaning the presence of a gas system 
+#is associated with an increase
+#of approximately 12381.41 units in sell.
+# - **Centralair:** The coefficient 
+#is 12632.8905, meaning the presence 
+#of central air conditioning is associated
+#with an increase of approximately 12632.89 units in sell.
+# - **Garage:** The coefficient is 4244.8290, 
+#meaning the presence of a garage is 
+#associated with an increase of 
+#approximately 4244.83 units in sell.
+# - **Neighbour:** The coefficient is 9369.5132, 
+#meaning being in a certain neighborhood 
+#is associated with an increase of 
+#approximately 9369.51 units in sell.
+```
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+# - The intercept has a negative coefficient (-4038.3540), 
+#which might be unexpected in some contexts 
+#but can be interpreted as the base value
+#when all other variables are zero.
+# - The large coefficients for fullbath, gas, and centralair 
+#suggest these variables have a 
+#substantial economic impact, which should be verified for practical realism.
+
+```
+
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+# Overall fit metrics
+r_squared <- baseline_summary$r.squared
+adjusted_r_squared <- baseline_summary$adj.r.squared
+f_statistic <- baseline_summary$fstatistic
+
+```
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+
+#R-squared: 0.6731, indicating that approximately 
+#67.31% of the variance in sell 
+#is explained by the mode
+#Adjusted R-squared: 0.6664
+#slightly lower than R-squared, accounting for the number of predictors. 
+#This is still a good fit, showing the model 
+#explains a substantial portion of the variance.",
+#The F-statistic is 99.97 with a p-value
+#< 2.2e-16, indicating that the model is statistically
+#significant overall.
+#This suggests that the predictors, 
+#taken together, significantly explain the variability in sell."
+```
+
+
+```{r}
+# Print the overall fit metrics
+cat("R-squared:", r_squared, "\n")
+cat("Adjusted R-squared:", adjusted_r_squared, "\n")
+cat("F-statistic:", f_statistic[1], "on", f_statistic[2], "and", f_statistic[3], "DF, p-value:", pf(f_statistic[1], f_statistic[2], f_statistic[3], lower.tail = FALSE), "\n")
+```
+
+
+```{r}
+
+# Perform RESET test on the new model
+Rtest <- resettest(baseline_model, power = 2:3, type = "regressor")
+print(Rtest)
+```
+```{r}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(width = 80)
+#The RESET test has a p-value of 0.6546, 
+#which is not significant. This indicates 
+#that there is no strong evidence against 
+#the model specification. In other words,
+#the model does not suffer from omitted
+#variable bias or incorrect functional form.
+# Summary
+#Statistical Significance:**
+#Most variables are statistically significant, #indicating they have a meaningful relationship
+#with the dependent variable.
+#Economic Significance:** Variables like lotsize,
+#fullbath, and centralair show substantial economic
+#impacts, which align with practical expectations.",
+#"- **Model Fit:** The model has a good fit with 
+#an R-squared of 67.31% and an
+#adjusted R-squared of 66.64%. The model is also
+#statistically significant 
+#as indicated by the F-statistic.",
+# **Model Specification** The RESET test suggests
+# that the model does not have specification errors.",
+#"Overall, the baseline model appears to be robust 
+#and provides meaningful insights into the factors
+#affecting property values (sell)."
+```
+#8
+```{r}
+library(lmtest)
+library(sandwich)
+```
+
+```{r}
+# Fit the baseline model
+baseline_model <- lm(sell ~ ., data = hp)
+
+# Perform the Breusch-Pagan test for heteroskedasticity
+bp_test <- bptest(baseline_model)
+
+# Print the results of the Breusch-Pagan test
+print(bp_test)
+```
+#The Breusch-Pagan test results show 
+#a BP = 61.953 with a p-value of 4.014e-09.
+#Since the p-value is significantly 
+#less than 0.05, we reject the 
+#null hypothesis of homoscedasticity.
+#This indicates the presence of
+#heteroskedasticity in the model.
+
+```{r}
+ # Refit the model using robust standard errors
+  robust_model <- coeftest(baseline_model, vcov = vcovHC(baseline_model, type = "HC1"))
+  
+  # Print the summary of the model with robust standard errors
+  print(robust_model)
+```
+#lotsize:
+
+#Coefficient: 3.5463
+#Statistically significant with p-value < 2.2e-16
+#conomically significant: A one-unit increase in lot #size is associated with an increase of approximately #3.55 units in property value (sell).
+#Bedrooms:
+
+#Coefficient: 1832.00347
+#Statistically insignificant with p-value = 0.07819
+#This indicates that the number of bedrooms does not #have a significant effect on property value at the 5% #significance level.
+#Fullbath:
+
+#Coefficient: 14335.55847
+#Statistically significant with p-value < 2e-16
+#Economically significant: An additional full bathroom #is associated with an increase of approximately #14335.56 units in property value.
+#Stories:
+
+#Coefficient: 6556.94571
+#Statistically significant with p-value = 2.03e-13
+#Economically significant: An additional story in the #building is associated with an increase of #approximately 6556.95 units in property value.
+#Driveway:
+
+#Coefficient: 6687.77889
+#Statistically significant with p-value = 6.259e-05
+#Economically significant: Having a driveway is #associated with an increase of approximately 6687.78 #units in property value.
+#Recreation:
+
+#Coefficient: 4511.28834
+#Statistically significant with p-value = 0.035869
+#Economically significant: The presence of recreation #facilities is associated with an increase of #approximately 4511.29 units in property value.
+#Basement:
+
+#Coefficient: 5452.38346
+#Statistically significant with p-value = 0.002001
+#Economically significant: Having a basement is #associated with an increase of approximately 5452.38 #units in property value.
+#Gas:
+
+#Coefficient: 12381.40627
+#Statistically significant with p-value = 0.002613
+#Economically significant: The presence of a gas system #is associated with an increase of approximately #12381.41 units in property value.
+#Centralair:
+
+#Coefficient: 12632.89004
+#Statistically significant with p-value = 1.52e-13
+#Economically significant: The presence of central air #conditioning is associated with an increase of #approximately 12632.89 units in property value.
+#Garage:
+
+#Coefficient: 4244.82900
+#Statistically significant with p-value = 8.901e-06
+#Economically significant: The presence of a garage is #associated with an increase of approximately 4244.83 #units in property value.
+#Neighbour:
+
+#Coefficient: 9369.51324
+#Statistically significant with p-value = 7.482e-07
+#Economically significant: Being in a certain #neighborhood is associated with an increase of #approximately 9369.51 units in property value.
+#Overall Model Fit
+#R-squared: 0.6731
+#Indicates that approximately 67.31% of the variance in #sell is explained by the model.
+#Adjusted R-squared: 0.6664
+#Slightly lower than R-squared, accounting for the #number #of predictors. Still a good fit, showing the #model explains a substantial portion of the variance.
+#F-statistic: 99.97 with a p-value < 2.2e-16
+#Indicates that the model is statistically significant #overall, suggesting that the predictors, taken #together, significantly explain the variability in #sell.
+#Summary
+#Statistical Significance: Most variables are #statistically significant, indicating they have a #meaningful relationship with the dependent variable.
+#Economic Significance: Variables like lotsize, #fullbath, and centralair show substantial economic #impacts, which align with practical expectations.
+#Model Fit: The model has a good fit with an R-squared #of 67.31% and an adjusted R-squared of 66.64%. The #model is also statistically significant as indicated by #the F-statistic.
+#Model Specification: The RESET test suggests that the #model does not have specification errors.
+#Heteroskedasticity: The Breusch-Pagan test indicates #the presence of heteroskedasticity, which has been #corrected using robust standard errors. The corrected #model provides more reliable standard errors and #significance tests.
