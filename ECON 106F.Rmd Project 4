@@ -1,0 +1,74 @@
+---
+title: "LAB 4"
+author: "Gavin Valenzuela"
+date: "2024-06-07"
+output: pdf_document
+---
+
+```{r}
+library(data.table)
+
+file_path <- "C:/Users/valen/Downloads/^IXIC.csv"
+risk_free_rate_file_path <- "C:/Users/valen/Downloads/^IRX.csv"
+```
+
+
+```{r}
+ixic_data <- fread(file_path)
+irx_data <- fread(risk_free_rate_file_path)
+
+
+head(ixic_data)
+names(ixic_data)
+head(irx_data)
+names(irx_data)
+
+
+ixic_data[, Date := as.Date(Date, format="%Y-%m-%d")]
+irx_data[, Date := as.Date(Date, format="%Y-%m-%d")]
+
+
+setnames(irx_data, old = c("Close"), new = c("Risk_Free_Rate"))
+
+irx_data[, Risk_Free_Rate := as.numeric(Risk_Free_Rate)]
+
+merged_data <- merge(ixic_data, irx_data[, .(Date, Risk_Free_Rate)], by = "Date")
+
+merged_data[, Return := (shift(`Adj Close`, type = "lag") - `Adj Close`) / shift(`Adj Close`, type = "lag")]
+
+# Calculate excess returns
+merged_data[, Excess_Stock_Return := Return - Risk_Free_Rate / 100]  # Convert percentage to decimal
+
+# Assuming Market_Return is given or needs to be calculated similarly
+# Example: Calculate market excess returns if Market_Return column is present
+# merged_data[, Excess_Market_Return := Market_Return - Risk_Free_Rate / 100]
+
+# For demonstration, assuming Market_Return is the same as Stock_Return (replace with actual Market_Return if available)
+merged_data[, Excess_Market_Return := Excess_Stock_Return]
+```
+
+
+```{r}
+# Perform linear regression to estimate beta
+model <- lm(Excess_Stock_Return ~ Excess_Market_Return, data = merged_data)
+
+# Summary of the regression model
+summary(model)
+
+# Extract the beta coefficient
+beta <- coef(model)["Excess_Market_Return"]
+cat("Estimated Beta:", beta, "\n")
+
+# Plot the data and the regression line using base R plotting functions
+plot(merged_data$Excess_Market_Return, merged_data$Excess_Stock_Return,
+     main = "Beta Estimation",
+     xlab = "Market Excess Return",
+     ylab = "Stock Excess Return",
+     pch = 19, col = "blue")
+abline(model, col = "red")
+
+
+```
+
+
+
