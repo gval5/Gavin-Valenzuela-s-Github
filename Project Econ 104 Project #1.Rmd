@@ -43,7 +43,7 @@ AIC(model1)
 ```
 
 ```{r}
-# Assuming model is already defined and fitted to your data
+# Assuming model is already defined and fitted to the data
 
 # Generate fitted values from the model
 fittedmodel <- fitted.values(model)
@@ -80,7 +80,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 options(width = 80)
 # Interpretation
 #(Comment on the Statistical and 
-#Economic Significance of Your Individual Estimates
+#Economic Significance of Individual Estimates
 #From the summary output of the baseline model
 #*Statistically Significant Variables:
 #Variables with p-values less than 0.05 are statistically significant
