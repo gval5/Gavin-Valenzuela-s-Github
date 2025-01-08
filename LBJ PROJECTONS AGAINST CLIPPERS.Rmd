@@ -1,0 +1,415 @@
+---
+title: "LBJ PROJECTED AGAINST THE CLIPPERS"
+author: "Gavin Valenzuela"
+date: "2025-01-08"
+output: pdf_document
+---
+
+```{r}
+library(fastICA)
+library(ggplot2)
+library(corrplot)
+library(MASS)
+library(readr)
+library(readxl)
+library(devtools)
+library(dplyr)
+library(zoo)
+library(boot)
+library(Boruta)
+```
+
+```{r}
+# Load Data
+Lebron_James_All_Regular_Season_Stats <- read_excel("C:/Users/valen/Desktop/LBJ/Lebron_James_All_Regular_Season_Stats.xlsx")
+
+# Handle Missing Values
+Lebron_James_All_Regular_Season_Stats <- Lebron_James_All_Regular_Season_Stats %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .)))
+
+# Add RecentAvgPoints Variable BEFORE SPLITTING
+Lebron_James_All_Regular_Season_Stats$RecentAvgPoints <- rollapply(
+  Lebron_James_All_Regular_Season_Stats$PTS,
+  width = 5,
+  FUN = mean,
+  align = 'right',
+  fill = NA
+)
+
+# Verify if RecentAvgPoints was added successfully
+print("Summary of RecentAvgPoints:")
+print(summary(Lebron_James_All_Regular_Season_Stats$RecentAvgPoints))
+
+# Remove rows where RecentAvgPoints is NA (if necessary)
+Lebron_James_All_Regular_Season_Stats <- Lebron_James_All_Regular_Season_Stats %>%
+  filter(!is.na(RecentAvgPoints))
+
+# Train-Test Split
+set.seed(123)
+train_indices <- sample(seq_len(nrow(Lebron_James_All_Regular_Season_Stats)),
+                        size = floor(0.67 * nrow(Lebron_James_All_Regular_Season_Stats)))
+train_data <- Lebron_James_All_Regular_Season_Stats[train_indices, ]
+test_data <- Lebron_James_All_Regular_Season_Stats[-train_indices, ]
+
+# Define Enhanced Formula
+enhanced_formula <- PTS ~ RecentAvgPoints * FG + I(FGA^2) + PlusMinus + AST + ORB + DRB
+
+# Fit the Model
+enhanced_model_train <- glm(enhanced_formula, data = train_data)
+
+# Ensure no missing values for RecentAvgPoints in Test Data
+test_data$RecentAvgPoints[is.na(test_data$RecentAvgPoints)] <- mean(test_data$RecentAvgPoints, na.rm = TRUE)
+
+# Predict on Test Data
+predictions <- predict(enhanced_model_train, test_data, type = "response")
+
+# Verify No NA in Predictions
+if (sum(is.na(predictions)) > 0) {
+  stop("Predictions still contain NA values.")
+}
+
+# Calculate Mean Squared Error (MSE)
+mse_test <- mean((predictions - test_data$PTS)^2)
+print(paste("Mean Squared Error (Test Data):", mse_test))
+```
+Interpret the MSE:
+
+An MSE of ~10.589 suggests the average squared difference between predicted and actual values in the test set is around 10.589
+Lower MSE values generally indicate better model performance. However, interpret this in the context of the dataset and scale of the PTS variable.
+
+
+```{r}
+#histogram Of Frequency Of times LBJ Played each NBA team
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = Opp)) +
+  geom_bar(fill = "green", alpha = 0.7) +
+  ggtitle("Count of Games by Opponent") +
+  xlab("Opponent") +
+  ylab("Count")
+#Histogram of Age and Each Game He Played
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = Age)) +
+  geom_bar(fill = "red", alpha = 0.7) +
+  ggtitle("Bar Chart of Age Counts") +
+  xlab("Age") +
+  ylab("Count")
+# Histogram for 'FG Attempted'
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = FGA)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  ggtitle("Histogram of FG Attempted") +
+  xlab("FG Attempted") +
+  ylab("Frequency")
+# Histogram for 'Points Per Game'
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = PTS)) +
+  geom_histogram(bins = 30, fill = "green", alpha = 0.7) +
+  ggtitle("Histogram of Points Per Game") +
+  xlab("Points Per Game") +
+  ylab("Frequency")
+# Histogram for FG made
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = FG)) +
+  geom_histogram(bins = 30, fill = "red", alpha = 0.7) +
+  ggtitle("Histogram of FG Made") +
+  xlab("FG Made") +
+  ylab("Frequency")
+```
+
+```{r}
+
+# Histogram of plus-minus values
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = PlusMinus)) +
+  geom_histogram(bins = 30, fill = "cornflowerblue", alpha = 0.7) +
+  ggtitle("Distribution of LeBron James' Plus-Minus Values") +
+  xlab("Plus-Minus") +
+  ylab("Frequency")
+# Histogram of Assists Per Game
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = AST)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  ggtitle("Distribution of Assists") +
+  xlab("Assists per Game") +
+  ylab("Frequency")
+
+#Histogram of Rebounds Per Game
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = ORB)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  ggtitle("Distribution of Offensive Rebounds") +
+  xlab("Offensive Rebounds per Game") +
+  ylab("Frequency")
+
+#Histogram of DRB Per Game
+ggplot(data = Lebron_James_All_Regular_Season_Stats, aes(x = DRB)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  ggtitle("Distribution of Defensive Rebounds") +
+  xlab("Defensive Rebounds per Game") +
+  ylab("Frequency")
+```
+
+```{r}
+#Set Date Variable
+Lebron_James_All_Regular_Season_Stats$Date <- as.Date(Lebron_James_All_Regular_Season_Stats$Date, format = "%y-%d-%m")
+
+# Filter for games against the Clippers
+# Replace 'Opponent' with actual opponent column name
+games_vs_clippers <- Lebron_James_All_Regular_Season_Stats %>%
+  filter(Opp == "LAC")
+
+# Plot points scored against the Clippers
+# Replace 'Date' and 'Points' with actual column names
+ggplot(data = games_vs_clippers, aes(x = Date, y = PTS)) +
+  geom_line() +  # For a time series line
+  geom_point() +  # Adds points to each data point on the line
+  ggtitle("LeBron James Points Scored Against the Clippers") +
+  xlab("Date") +
+  ylab("Points Scored") +
+  theme_minimal()
+#average points vs clippers
+average_points_vs_clippers <- games_vs_clippers %>%
+  summarise(AvgPoints = mean(PTS)) %>%
+  pull(AvgPoints)
+Lebron_James_All_Regular_Season_Stats$AvgPointsVsClippers <- average_points_vs_clippers
+
+```
+
+```{r}
+#2 
+#Avg points 
+#dataset is sorted in chronological order)
+Lebron_James_All_Regular_Season_Stats$RecentAvgPoints <- rollapply(Lebron_James_All_Regular_Season_Stats$PTS, 5, mean, align = 'right', fill = NA)
+# Question 2 
+
+model <- lm(PTS ~ RecentAvgPoints + AvgPointsVsClippers + FGA + FG + PlusMinus + AST + ORB + DRB, data = Lebron_James_All_Regular_Season_Stats)
+summary(model)
+
+```
+
+#3 Model Coefficients Interpretation:
+ Intercept (-2.384132): Theoretical value, significant (p < 0.001).
+ RecentAvgPoints (0.297933): Highly significant (p < 2e-16); each additional point increases next game points by ~0.298.
+ FGA (0.129004): Significant (p < 0.0001); each extra field goal attempt increases next game points by ~0.129.
+ FG (1.918270): Most significant predictor (p < 2e-16); each extra field goal made increases next game points by ~1.918.
+ PlusMinus (0.017335): Significant (p < 0.05) but small effect; slight increase in points with higher plus-minus.
+ AST, ORB, DRB: Not significant (p > 0.05); minimal direct impact on scoring.
+ AvgPointsVsClippers: Undefined due to multicollinearity, likely redundant with RecentAvgPoints.
+
+ Model Fit:
+ The model explains a significant portion of variance in points (R-squared: 0.818).
+ Overall model is statistically significant.
+
+ Note:
+ FG and RecentAvgPoints are key influencers of LeBron's scoring.
+           AST, ORB, and DRB have limited direct impact on his scoring.
+           Model captures key performance aspects but some factors might have indirect effects or be influenced by unmodeled variables.
+
+```{r}
+
+# Fit the model
+model <- lm(PTS ~ RecentAvgPoints + FGA + FG + PlusMinus + AST + ORB + DRB, data = Lebron_James_All_Regular_Season_Stats)
+```
+3 Model Coefficients Interpretation:
+Intercept (-2.384132): Theoretical value, significant (p < 0.001).
+RecentAvgPoints (0.297933): Highly significant (p < 2e-16); each additional point increases next game points by ~0.298.
+FGA (0.129004): Significant (p < 0.0001); each extra field goal attempt increases next game points by ~0.129.
+FG (1.918270): Most significant predictor (p < 2e-16); each extra field goal made increases next game points by ~1.918.
+PlusMinus (0.017335): Significant (p < 0.05) but small effect; slight increase in points with higher plus-minus.
+AST, ORB, DRB: Not significant (p > 0.05); minimal direct impact on scoring.
+AvgPointsVsClippers: Undefined due to multicollinearity, likely redundant with RecentAvgPoints.
+Model Fit:
+The model explains a significant portion of variance in points (R-squared: 0.818).
+Overall model is statistically significant.
+
+Note:
+FG and RecentAvgPoints are key influencers of LeBron's scoring.
+AST, ORB, and DRB have limited direct impact on his scoring.
+Model captures key performance aspects but some factors might have indirect effects or be influenced by unmodeled variables.
+```{r}
+#Generate diagnostic plots
+          par(mfrow = c(2, 2))  # Arrange plots in a 2x2 grid
+          plot(model)
+          
+          # Calculate Cook's Distance
+          cooks.distance <- cooks.distance(model)
+          
+          # Plot Cook's Distance
+          plot(cooks.distance, pch = 20, main = "Cook's Distance", ylab = "Cook's Distance")
+          abline(h = 4/((nrow(Lebron_James_All_Regular_Season_Stats)) - length(model$coefficients) - 1), col = "red")
+          
+          # Example: Remove observations with high Cook's Distance
+          high_influence <- which(cooks.distance > 4/((nrow(Lebron_James_All_Regular_Season_Stats)) - length(model$coefficients) - 1))
+          reduced_data <- Lebron_James_All_Regular_Season_Stats[-high_influence, ]
+          
+         # Ensure RecentAvgPoints is included in reduced_data
+if (!"RecentAvgPoints" %in% colnames(reduced_data)) {
+  reduced_data$RecentAvgPoints <- rollapply(
+    reduced_data$PTS,
+    width = 5,
+    FUN = mean,
+    align = 'right',
+    fill = NA
+  )
+}
+
+# Re-estimate the model with reduced data
+revised_model <- lm(PTS ~ RecentAvgPoints + FGA + FG + PlusMinus + AST + ORB + DRB, data = reduced_data)
+summary(revised_model)
+```
+          
+```{r}
+# Ensure RecentAvgPoints is calculated
+if (!"RecentAvgPoints" %in% colnames(Lebron_James_All_Regular_Season_Stats)) {
+  Lebron_James_All_Regular_Season_Stats$RecentAvgPoints <- rollapply(
+    Lebron_James_All_Regular_Season_Stats$PTS,
+    width = 5,
+    FUN = mean,
+    align = 'right',
+    fill = NA
+  )
+}
+
+# Perform Mallow's analysis
+library(leaps)
+full_model <- lm(PTS ~ RecentAvgPoints + FGA + FG + PlusMinus + AST + ORB + DRB, data = Lebron_James_All_Regular_Season_Stats)
+model_subset <- regsubsets(PTS ~ RecentAvgPoints + FGA + FG + PlusMinus + AST + ORB + DRB, 
+                           data = Lebron_James_All_Regular_Season_Stats, 
+                           nbest = 1)
+summary_model_subset <- summary(model_subset)
+print(summary_model_subset$cp)
+print(summary_model_subset)
+```
+
+```{r}
+# Run Boruta
+          boruta_output <- Boruta(PTS ~ "RecentAvgPoints" + "AvgPointsVsClippers" + "FGA" + "FG" + "PlusMinus" + "AST" + "ORB" + "DRB", data = Lebron_James_All_Regular_Season_Stats, doTrace = 2)
+          
+          # Print the results
+          print(boruta_output)
+          
+          # Plot the results
+          plot(boruta_output, cex.axis=.7, las=2)
+          
+          # Based on these results we can see Recent AveragePoints, FG, and FGA are the only notable variable worth keeping.
+```
+
+```{r}
+# Load required library
+library(Boruta)
+
+# Run Boruta Feature Selection
+boruta_output <- Boruta(
+  PTS ~ RecentAvgPoints + "AvgPointsVsClippers" + FGA + FG + PlusMinus + AST + ORB + DRB,
+  data = Lebron_James_All_Regular_Season_Stats,
+  doTrace = 2
+)
+
+# Print Boruta Results
+print(boruta_output)
+
+# Plot Boruta Results
+plot(boruta_output, cex.axis = 0.7, las = 2)
+          
+```
+Feature Importance Boxplot:
+
+Green Boxes: These represent variables deemed "important" by the Boruta algorithm. In this case, FG is the most critical variable.
+Black Boxes: These variables are tentative or less important in contributing to the target variable.
+Red Boxes: Variables labeled as "unimportant" for the prediction task.
+Key Variables to Keep: Based on the plot:
+
+Keep FG, RecentAvgPoints, and potentially FGA as they show significant importance.
+Disregard variables like ORB, DRB, and potentially PlusMinus, which have low importance scores.
+```{r}
+#6
+model <- lm(PTS ~ RecentAvgPoints + FG + FGA, data = Lebron_James_All_Regular_Season_Stats)
+# Calculate residuals and fitted values
+resid <- residuals(model)
+fitted_values <- fitted(model)
+          
+# Plot residuals vs. fitted values
+plot(fitted_values, resid, xlab = "Fitted Values", ylab = "Residuals", main = "Residuals vs. Fitted Values")
+          abline(h = 0, col = "red")  # Add a horizontal line at 0 for reference
+```
+
+```{r}
+          #6
+          model <- lm(PTS ~ RecentAvgPoints + FG + FGA, data = Lebron_James_All_Regular_Season_Stats)
+          # Calculate residuals and fitted values
+          resid <- residuals(model)
+          fitted_values <- fitted(model)
+          
+          # Plot residuals vs. fitted values
+          plot(fitted_values, resid, xlab = "Fitted Values", ylab = "Residuals", main = "Residuals vs. Fitted Values")
+          abline(h = 0, col = "red")  # Add a horizontal line at 0 for reference
+```
+         
+#6 explanation. In the "Residuals vs. Fitted Values" plot, key aspects to observe are: Pattern/Trend: Residuals should be randomly distributed around the horizontal line at 0. Patterns like curves or funnels suggest non-linearity or heteroscedasticity. Outliers: Points significantly distant from others may indicate outliers, potentially influencing the model significantly. Equal Variance: Residual spread should be consistent across fitted values; variance changes indicate heteroscedasticity. The model's high R-squared value (0.8174) suggests a good fit. However, the diagnostic plot is crucial for validating model assumptions. If residual patterns indicate issues, consider variable transformations, interaction terms, or alternative modeling approaches.
+
+
+```{r}
+          #7
+          library(lmtest)
+          
+          # My model
+          model <- lm(PTS ~ RecentAvgPoints + FG + FGA, data = Lebron_James_All_Regular_Season_Stats)
+          
+          # the RESET test
+          reset_test_results <- resettest(model, power = 2:3, type = "regressor")
+          
+          # Print the results
+          print(reset_test_results)
+      
+```
+
+#Notes for 7; The RESET test's p-value of 0.00783, being below the standard 0.05 threshold, signifies statistical significance, suggesting potential model misspecification. This could stem from omitted variables or an incorrect functional form, indicating that the model may not fully capture the underlying relationship between variables. To address this, consider incorporating additional relevant variables, exploring variable transformations or interaction terms, and employing diagnostic plots for further insights. Additionally, cross-validation can help assess the model's performance on new data. However, it's important to note that while the RESET test indicates misspecification, it does not specify the exact nature of the issue, requiring careful analysis and subject-matter expertise to refine the model effectively.
+
+```{r}
+#8
+library(lmtest)
+bp_test_results <- bptest(model)
+
+print(bp_test_results)
+          
+#since p-value is less than .05 then heteroskadacitity is present
+          
+library(sandwich)
+          
+# Calculate robust standard errors
+robust_se <- coeftest(model, vcov. = vcovHC(model, type = "HC1"))
+          
+# Print the results with robust standard errors
+print(robust_se)
+```
+#8 Explanation; All predictors are statistically significant at conventional levels (e.g., 0.05, 0.01), suggesting they have a meaningful contribution to explaining the variation in PTS. The signs of the coefficients indicate the direction of the relationship with PTS.
+```{r}
+          #8
+          library(lmtest)
+          bp_test_results <- bptest(model)
+          print(bp_test_results)
+          
+          #since p-value is less than .05 then heteroskadacitity is present
+          
+          library(sandwich)
+          
+          # Calculate robust standard errors
+          robust_se <- coeftest(model, vcov. = vcovHC(model, type = "HC1"))
+          
+          # Print the results with robust standard errors
+          print(robust_se)
+          
+```
+#8 Explanation; All predictors are statistically significant at conventional levels (e.g., 0.05, 0.01), suggesting they have a meaningful contribution to explaining the variation in PTS. The signs of the coefficients indicate the direction of the relationship with PTS.
+```{r}
+          #9
+          enhanced_model <- lm(PTS ~ RecentAvgPoints * FG + I(FGA^2) + PlusMinus + AST + ORB + DRB, data = Lebron_James_All_Regular_Season_Stats)
+          aic_enhanced <- AIC(enhanced_model)
+          bic_enhanced <- BIC(enhanced_model)
+          
+          # Print AIC and BIC for comparison
+          print(aic_enhanced)
+          print(bic_enhanced)
+```
+These values reflect the trade-off between:
+Goodness of fit: How well the model explains the variation in PTS.
+Model complexity: How many predictors (e.g., RecentAvgPoints, FG, FGA) are included.
+Indication:
+The higher these values, the worse the model is relative to alternative models.
+These values alone don't mean much—compare them with other models' AIC/BIC to make an informed decision.
+
+          
+
+
