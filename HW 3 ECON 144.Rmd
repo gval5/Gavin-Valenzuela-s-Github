@@ -137,10 +137,6 @@ autoplot(aapl_forecasts)
 # Load the data
 V1 <- read.table("C:/Users/valen/Downloads/labordata.dat", header = FALSE)
 
-# Replace "path_to_your_data/labordata.dat" with the actual path to your .dat file
-# Set the 'header' argument to TRUE if the first row contains column names
-# Set the 'sep' argument to the character that delimits your data, such as "," for CSV files
-# Add any other arguments that are necessary for your specific data format
 
 # Inspect the data
 head(V1)
@@ -157,8 +153,8 @@ acf(V1, lag.max=20, main="ACF for Unemployed Persons")
 pacf(V1, lag.max=20, main="PACF for Unemployed Persons")
 
 # If an AR model seems appropriate,  fit it using the `ar` function
-# Assuming V1 is a data frame and you want to use the first column for the AR model
-ar_model <- ar(V1[,1], method="mle") # Replace 1 with the index of the column you want to use
+# Assuming V1 is a data frame and want to use the first column for the AR model
+ar_model <- ar(V1[,1], method="mle") # Replace 1 with the index of the column to use
 summary(ar_model)
 
 # Plot the data with the AR model fit
