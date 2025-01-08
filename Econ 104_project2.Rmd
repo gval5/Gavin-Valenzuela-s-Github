@@ -1,0 +1,194 @@
+---
+title: "Econ104_project2"
+author: "Ashley Guerra, Eyasu Olana, Evan Titus, Gavin Valenzuela"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# 2a)
+
+```{r}
+library(forecast)
+library(tseries)
+load("cons.RData")
+#consumption <- c(672.1, 696.8, 737.1, 767.9, 762.8, 779.4, 823.1, 864.3, 903.2, 927.6)
+#income <- c(751.6, 779.2, 810.3, 864.7, 857.5, 874.9, 906.8, 942.9, 988.8, 1015.7)
+tsdisplay(cons$income)
+tsdisplay(cons$consumption)
+```
+
+```{r}
+adf.test(cons$consumption)
+adf.test(cons$income)
+```
+
+# 2b)
+
+```{r}
+#This is where 2(b)starts will make sure to add comments later on
+ndiffs(cons$consumption)
+ndiffs(cons$income)
+```
+
+```{r}
+diffincome <- diff(cons$income,1)
+diffconsumption <- diff(cons$consumption,1)
+tsdisplay(diffincome)
+tsdisplay(diffconsumption)
+```
+
+```{r}
+adf.test(diffincome)
+adf.test(diffconsumption)
+```
+
+The p-value for both of the variables are greater than 0.05 so we need to apply a second differencing.
+
+```{r}
+# Second differencing
+diff2income <- diff(diffincome, differences = 1)
+diff2consumption <- diff(diffconsumption, differences = 1)
+
+# Display the second differenced series
+tsdisplay(diff2income)
+tsdisplay(diff2consumption)
+
+# Perform ADF test on the second differenced series
+adf.test(diff2income)
+adf.test(diff2consumption)
+
+```
+
+The p-value for both of the variables are greater than 0.05 so we need to apply a third differencing.
+
+```{r}
+diff3income <- diff(diff2income, differences = 1)
+diff3consumption <- diff(diff2consumption, differences = 1)
+
+tsdisplay(diff3income)
+tsdisplay(diff3consumption)
+
+adf.test(diff3income)
+adf.test(diff3consumption)
+```
+
+# 3a)
+
+```{r, message = F}
+library(forecast)
+library(tseries)
+library(ARDL)
+library(dynlm)
+
+load("cons.RData")
+```
+
+
+```{r}
+# Convert to time series (assuming quarterly data, adjust frequency as needed)
+univariate_series <- ts(diff2consumption, frequency = 4)  # Adjust frequency if needed
+predictor <- ts(diff2income, frequency = 4)  # Adjust frequency if needed
+print(head(univariate_series))
+print(head(predictor))
+```
+
+```{r, message = F}
+# Fit an AR(p) model to the univariate series
+auto.ar.model <- auto.arima(univariate_series, stationary = TRUE, seasonal = FALSE, ic = "aic")
+
+# Print the chosen model
+print(auto.ar.model)
+
+```
+
+# 3b)
+
+```{r, message = F}
+# Part (b): Plot and comment on the ACF of the residuals
+residuals_ar <- residuals(auto.ar.model)
+acf(residuals_ar, main = "ACF of AR Model Residuals")
+```
+
+
+
+```{r, message = F}
+# Perform a formal test for autocorrelation (Ljung-Box test)
+lb_test_ar <- Box.test(residuals_ar, type = "Ljung-Box")
+print(lb_test_ar)
+```
+
+B.) ACF of AR Model Residuals
+The ACF plot shows that most autocorrelation values fall within the 95% confidence intervals, except for the first lag. This suggests some autocorrelation at the first lag but mostly uncorrelated residuals at higher lags.
+
+Box-Ljung Test
+Test Statistic: 6.1179
+p-value: 0.01338
+Since the p-value is less than 0.05, we reject the null hypothesis of no autocorrelation. This indicates significant autocorrelation in the residuals at the first lag.
+
+Conclusion
+The AR model does not fully capture the underlying patterns in the data, as evidenced by significant autocorrelation in the residuals at the first lag. Consider fitting an ARDL model to address this issue.
+
+# 3c)
+
+```{r, message = F}
+# Combine the data into a data frame for dynlm
+data <- data.frame(univariate_series = as.numeric(univariate_series), predictor = as.numeric(predictor))
+# Create lagged values manually, ensuring the number of rows match
+lag_univariate_series_1 <- c(NA, head(data$univariate_series, -1))
+lag_univariate_series_2 <- c(NA, NA, head(data$univariate_series, -2))
+lag_predictor_1 <- c(NA, head(data$predictor, -1))
+lag_predictor_2 <- c(NA, NA, head(data$predictor, -2))
+
+# Combine into a new data frame
+lagged_data <- data.frame(
+  univariate_series = data$univariate_series,
+  lag_univariate_series_1 = lag_univariate_series_1,
+  lag_univariate_series_2 = lag_univariate_series_2,
+  predictor = data$predictor,
+  lag_predictor_1 = lag_predictor_1,
+  lag_predictor_2 = lag_predictor_2
+)
+# Remove rows with NA values created by lagging
+lagged_data <- na.omit(lagged_data)
+
+# Fit the ARDL model using dynlm
+ardl_formula <- as.formula("univariate_series ~ lag_univariate_series_1 + lag_univariate_series_2 + lag_predictor_1 + lag_predictor_2")
+ardl.model <- dynlm(ardl_formula, data = lagged_data)
+
+# Print the summary of the ARDL model to ensure it is fitted correctly
+summary(ardl.model)
+```
+
+```{r, message = F}
+# Extract residuals from the ARDL model
+residuals_ardl <- residuals(ardl.model)
+```
+
+
+```{r, message = F}
+# Check for non-finite values in the residuals
+print(sum(!is.finite(residuals_ardl)))  # Print the number of non-finite values
+# Remove non-finite values
+residuals_ardl <- residuals_ardl[is.finite(residuals_ardl)]
+```
+
+```{r, message = F}
+# Plot the ACF of the residuals
+acf(residuals_ardl, main = "ACF of ARDL Model Residuals")
+```
+
+```{r, message = F}
+lb_test_ardl <- Box.test(residuals_ardl, type = "Ljung-Box")
+print(lb_test_ardl)
+```
+C.)ACF of ARDL Model Residuals
+The ACF plot shows no significant autocorrelations, indicating that the residuals are essentially white noise. This suggests that the ARDL model has captured the data dynamics well.
+
+Ljung-Box Test
+With a p-value of 0.4373, we fail to reject the null hypothesis of no autocorrelation in the residuals, supporting the conclusion from the ACF plot that the residuals do not exhibit significant autocorrelation.
+
+ARDL Model Summary
+Model Fit: The adjusted R-squared is 0.9469, indicating that the model explains 94.69% of the variance in the dependent variable. The F-statistic is significant with a p-value of 0.008455, showing that the model is statistically significant overall.
+Coefficients: lag_univariate_series_1 is marginally significant (p-value = 0.0624), while other coefficients are not statistically significant.
+Conclusion
+The ARDL model fits the data well, with residuals showing no significant autocorrelation. The model is statistically significant overall, though not all individual predictors are.
